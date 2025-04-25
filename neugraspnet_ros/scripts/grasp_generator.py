@@ -19,11 +19,11 @@ import pickle
 import open3d as o3d
 
 # neugraspnet repo imports
-from neugraspnet.perception import CameraIntrinsic, TSDFVolume
-from neugraspnet.utils.transform import Rotation, Transform
-from neugraspnet.grasp import *
-from neugraspnet.detection_implicit import NeuGraspImplicit
-from neugraspnet.simulation import ClutterRemovalSim
+from neugraspnet.src.utils.perception import CameraIntrinsic, TSDFVolume
+from neugraspnet.src.utils.transform import Rotation, Transform
+from neugraspnet.src.utils.grasp import *
+from neugraspnet.src.experiments.detection_implicit import NeuGraspImplicit
+from neugraspnet.src.experiments.clutter_removal import ClutterRemovalSim
 
 ################################################ 
 # Perception pipeline
@@ -32,7 +32,7 @@ from neugraspnet.simulation import ClutterRemovalSim
 # SCENE_SIZE = 0.3 # size of the scene in meters
 
 class GraspGenerator:
-	def __init__(self, grasp_frame_name='grasp_origin', grasp_srv_name='get_grasps', grasp_topic_name="/generated_grasps", camera_type='zed',
+	def __init__(self, grasp_frame_name='map', grasp_srv_name='get_grasps', grasp_topic_name="/generated_grasps", camera_type='zed',
 	      		 net_type='neu_grasp_pn_deeper', net_path=None, tsdf_res=64, scene_size=0.3, downsampl_size=0.0075, use_reachability=False):
 		
 		# Publish grasps to topic
@@ -49,13 +49,13 @@ class GraspGenerator:
 		self.camera_type = camera_type
 		if self.camera_type == 'zed':
 			# get the pointcloud from the topic
-			self.pcl_topic_name = "/zed2/zed_node/point_cloud/cloud_registered"
-			self.depth_topic_name = "/zed2/zed_node/depth/depth_registered"
-			# camera intrinsic parameters (TODO: Get this from /zed2/zed_node/depth/camera_info topic)
+			self.pcl_topic_name = "/zed2i/zed_node/point_cloud/cloud_registered"
+			self.depth_topic_name = "/zed2i/zed_node/depth/depth_registered"
+			# camera intrinsic parameters (TODO: Get this from /zed2i/zed_node/depth/camera_info topic)
 			# 720p
 			self.camera_intrinsic = CameraIntrinsic(width=640, height=360,
-													fx=262.1390075683594, fy=262.1390075683594,
-													cx=311.67730712890625, cy=185.56422424316406)
+													fx=264.3818664550781, fy=264.3818664550781,
+													cx=315.6131286621094, cy=177.90408325195312)
 			# VGA
 			# self.camera_intrinsic = CameraIntrinsic(width=336, height=188,
 			# 										fx=132.06214904785156, fy=132.06214904785156,
@@ -83,7 +83,8 @@ class GraspGenerator:
 		if net_path is None:
 			# net_path = Path('/neugraspnet/neugraspnet_repo/data/best_real_robot_runs/PILE_neural_grasp_neu_grasp_pn_deeper_468244.pt')
 			# net_path = Path('/neugraspnet/neugraspnet_repo/data/best_real_robot_runs/PACKED_best_neural_grasp_neu_grasp_pn_deeper_val_acc=0.9040.pt')
-			net_path = Path(os.path.dirname(os.path.abspath(__file__))+'/../neugraspnet_repo/data/runs_relevant_affnet/23-11-06-04-55-36_dataset=data_affnet_train_constructed_GPG_60,augment=False,net=6d_neu_grasp_pn_affnet,batch_size=64,lr=2e-04,AFFNET_v4_no_hand_balanced/best_neural_grasp_neu_grasp_pn_affnet_val_acc=0.9179.pt')
+			# net_path = Path(os.path.dirname(os.path.abspath(__file__))+'/../neugraspnet_repo/data/runs_relevant_affnet/23-11-06-04-55-36_dataset=data_affnet_train_constructed_GPG_60,augment=False,net=6d_neu_grasp_pn_affnet,batch_size=64,lr=2e-04,AFFNET_v4_no_hand_balanced/best_neural_grasp_neu_grasp_pn_affnet_val_acc=0.9179.pt')
+			net_path = Path(os.path.dirname(os.path.abspath(__file__))+'/../../neugraspnet/data/networks/neugraspnet_pile_efficient.pt')
 
 		self.size = scene_size
 		self.tsdf_res = tsdf_res
@@ -99,7 +100,7 @@ class GraspGenerator:
 		
 		self.o3d_vis = None # open3d visualizer
 
-	def setup_grasp_planner(self, model, type, qual_th=0.5, aff_thresh=0.5, force=False, seen_pc_only=False, vis_mesh=False):
+	def setup_grasp_planner(self, model, type, qual_th=0.5, aff_thresh=0.5, force=False, seen_pc_only=False, vis_mesh=True):
 
 		self.grasp_planner = NeuGraspImplicit(model,
                                     type,
@@ -115,8 +116,8 @@ class GraspGenerator:
 		while not rospy.is_shutdown():
 			try:
 				if self.camera_type == 'zed':
-					# table_to_pcl = self.tf_buffer.lookup_transform(self.grasp_frame_name, 'zed2_left_camera_frame', rospy.Time(0))
-					table_to_pcl = self.tf_buffer.lookup_transform(self.grasp_frame_name, 'zed2_left_camera_frame', rospy.Time(0)).transform
+					# table_to_pcl = self.tf_buffer.lookup_transform(self.grasp_frame_name, 'zed2i_left_camera_frame', rospy.Time(0))
+					table_to_pcl = self.tf_buffer.lookup_transform(self.grasp_frame_name, 'zed2i_left_camera_frame', rospy.Time(0)).transform
 				elif self.camera_type == 'xtion':
 					# table_to_pcl = self.tf_buffer.lookup_transform(self.grasp_frame_name, 'xtion_rgb_optical_frame', rospy.Time(0))				
 					table_to_pcl = self.tf_buffer.lookup_transform(self.grasp_frame_name, 'xtion_rgb_optical_frame', rospy.Time(0)).transform
@@ -169,7 +170,7 @@ class GraspGenerator:
 		while not rospy.is_shutdown():
 			try:
 				if self.camera_type == 'zed':
-					cam_to_table_tf = self.tf_buffer.lookup_transform('zed2_left_camera_optical_frame', self.grasp_frame_name, rospy.Time(0))
+					cam_to_table_tf = self.tf_buffer.lookup_transform('zed2i_left_camera_optical_frame', self.grasp_frame_name, rospy.Time(0))
 				elif self.camera_type == 'xtion':
 					cam_to_table_tf = self.tf_buffer.lookup_transform('xtion_rgb_optical_frame', self.grasp_frame_name, rospy.Time(0))
 			except:
@@ -242,7 +243,7 @@ class GraspGenerator:
 				grasp_gen.o3d_vis.update_renderer()
 			
 		# dummy sim just for parameters. TODO: clean this up
-		sim = ClutterRemovalSim('pile', 'pile/test', gripper_type='robotiq', gui=False, data_root=os.path.dirname(os.path.abspath(__file__))+'/../neugraspnet_repo/')
+		sim = ClutterRemovalSim('pile', 'pile/test', gripper_type='robotiq', gui=False, data_root=os.path.dirname(os.path.abspath(__file__))+'/../../neugraspnet/')
 
 		grasps, scores, _, _, _ = self.grasp_planner(state, sim=sim, o3d_vis=self.o3d_vis)
 
@@ -368,27 +369,27 @@ class GraspGenerator:
 
 # Run this as a script
 rospy.init_node('grasp_generator')
-grasp_gen = GraspGenerator(net_type='neu_grasp_pn_affnet', camera_type='zed')
+grasp_gen = GraspGenerator(net_type='neu_grasp_pn_deeper_efficient', camera_type='zed')
 
 # Optional visualization
-visualize = False
+visualize = True
 if visualize:
 	# Running viz of the scene point clouds and meshes
 	grasp_gen.o3d_vis = o3d.visualization.Visualizer()
 	grasp_gen.o3d_vis.create_window(width=1920, height=1016)
 	
-	# # DEBUG: run grasp generator
-	# while(1):
-	# 	grasps, scores = grasp_gen.get_grasps()
-	# 	print("Found {} grasps with scores: {}".format(len(grasps), scores))
-	# 	import pdb; pdb.set_trace()
+	# DEBUG: run grasp generator
+	while(1):
+		grasps, scores = grasp_gen.get_grasps()
+		print("Found {} grasps with scores: {}".format(len(grasps), scores))
+		# import pdb; pdb.set_trace()
 
-	# # Optional: Keep running viz (Slows down everything else)
+	# Optional: Keep running viz (Slows down everything else)
 	# while not rospy.is_shutdown():
-	# 	grasp_gen.o3d_vis.poll_events()
-	# 	grasp_gen.o3d_vis.update_renderer()
-	# rate.sleep()
-	rospy.spin()
+		grasp_gen.o3d_vis.poll_events()
+		grasp_gen.o3d_vis.update_renderer()
+		rospy.sleep(0.01)
+	# rospy.spin()
 else:
 	grasp_gen.o3d_vis = None
 	rospy.spin()

@@ -21,7 +21,7 @@ axes_cond = lambda x,z: np.isclose(np.abs(np.dot(x, z)), 1.0, 1e-4)
 
 
 class NeuGraspImplicit(object):
-    def __init__(self, model_path, model_type, best=False, force_detection=False, seen_pc_only=False, qual_th=0.5, out_th=0.5, visualize=False, resolution=40, max_grasp_queries_at_once=40, **kwargs):
+    def __init__(self, model_path, model_type, best=False, force_detection=False, seen_pc_only=False, qual_th=0.5, out_th=0.5, visualize=False, resolution=40, max_grasp_queries_at_once=200, **kwargs):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         # self.device = "cpu"
         self.net = load_network(model_path, self.device, model_type=model_type)
@@ -245,7 +245,7 @@ class NeuGraspImplicit(object):
         if 'neu' in self.model_type:
             # Also generate grasp point clouds
             # render_settings = read_json(Path("data/grasp_cloud_setup.json"))
-            render_settings = read_json(Path("data/grasp_cloud_setup_efficient.json"))
+            render_settings = read_json(Path("/home/vignesh/sandbox/playground/neugraspnet/neugraspnet/data/grasp_cloud_setup_efficient.json"))
             gt_render = False
             if gt_render:
                 # remove table because we dont want to render it

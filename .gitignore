@@ -5,3 +5,5 @@
 *logs*
 *data
 junk
+*.so
+neugraspnet/src/network/utils/lib*
