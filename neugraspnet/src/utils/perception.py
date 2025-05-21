@@ -3,6 +3,7 @@ import time
 
 import numpy as np
 import open3d as o3d
+from typing import Union
 
 from neugraspnet.src.utils.transform import Transform
 
@@ -83,7 +84,7 @@ class TSDFVolume(object):
             color_type=o3d.pipelines.integration.TSDFVolumeColorType.NoColor,
         )
 
-    def integrate(self, depth_img, intrinsic, extrinsic):
+    def integrate(self, depth_img, intrinsic:CameraIntrinsic, extrinsic:Union[Transform, np.ndarray]):
         """
         Args:
             depth_img: The depth image.
@@ -91,8 +92,8 @@ class TSDFVolume(object):
             extrinsics: The transform from the TSDF to camera coordinates, T_eye_task.
         """
         rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
-            o3d.geometry.Image(np.empty_like(depth_img)),
-            o3d.geometry.Image(depth_img),
+            o3d.geometry.Image(np.empty_like(depth_img).astype(np.uint8)),
+            o3d.geometry.Image(depth_img.astype(np.float32)),
             depth_scale=1.0,
             depth_trunc=2.0,
             convert_rgb_to_intensity=False,
@@ -107,7 +108,10 @@ class TSDFVolume(object):
             cy=intrinsic.cy,
         )
 
-        extrinsic = extrinsic.as_matrix()
+        if isinstance(extrinsic, Transform):
+            extrinsic = extrinsic.as_matrix()
+        assert isinstance(extrinsic, np.ndarray)
+        assert extrinsic.shape == (4, 4)
 
         self._volume.integrate(rgbd, intrinsic, extrinsic)
 

@@ -1,6 +1,6 @@
 from pathlib import Path
 import time
-
+import os
 import numpy as np
 from scipy import ndimage
 import torch
@@ -131,7 +131,7 @@ class NeuGraspImplicit(object):
         torch.cuda.empty_cache()
         if o3d_vis is not None:
             # Running simulation of the scene, grasps generated and grasp clouds
-            state.pc.colors = o3d.utility.Vector3dVector(np.tile(np.array([0, 0, 0]), (np.asarray(state.pc.points).shape[0], 1)))
+            # state.pc.colors = o3d.utility.Vector3dVector(np.tile(np.array([0, 0, 0]), (np.asarray(state.pc.points).shape[0], 1)))
             if first_call:
                 o3d_vis.add_geometry(state.pc, reset_bounding_box=True) # HACK TO SET O3D CAMERA VIEW for seed 100!!
                 o3d_vis.poll_events()
@@ -184,6 +184,8 @@ class NeuGraspImplicit(object):
         lower = np.array([0.0 , 0.0 , 0.0])
         upper = np.array([size, size, size])
         bounding_box = o3d.geometry.AxisAlignedBoundingBox(lower, upper)
+        if o3d_vis is not None:
+            o3d_vis.add_geometry(bounding_box)
         pc_extended = pc_extended.crop(bounding_box)
         voxel_size = 0.005
         pc_extended_down = pc_extended.voxel_down_sample(voxel_size)
@@ -198,7 +200,7 @@ class NeuGraspImplicit(object):
         sampler = GpgGraspSamplerPcl(0.05-0.0075) # Franka finger depth is actually a little less than 0.05
         safety_dist_above_table = 0.05 # table is spawned at finger_depth
         num_parallel = 1 # no parallel sampling for now
-        grasps, pos_queries, rot_queries, gpg_origin_points = sampler.sample_grasps_parallel(pc_extended_down, num_parallel=num_parallel, num_grasps=num_grasps_gpg, max_num_samples=180,#320
+        grasps, pos_queries, rot_queries, gpg_origin_points = sampler.sample_grasps_parallel(pc_extended_down, num_parallel=50, num_grasps=200, max_num_samples=700, # Add these as parameters
                                             safety_dis_above_table=safety_dist_above_table, show_final_grasps=False, verbose=False,
                                             return_origin_point=True)
         # Optional: Find out if the point comes from a seen or unseen area
@@ -245,7 +247,9 @@ class NeuGraspImplicit(object):
         if 'neu' in self.model_type:
             # Also generate grasp point clouds
             # render_settings = read_json(Path("data/grasp_cloud_setup.json"))
-            render_settings = read_json(Path("/home/vignesh/sandbox/playground/neugraspnet/neugraspnet/data/grasp_cloud_setup_efficient.json"))
+            
+            
+            render_settings = read_json(Path(os.path.join(os.path.dirname(Path(__file__).resolve()),'../..', 'data', 'grasp_cloud_setup_efficient.json')))
             gt_render = False
             if gt_render:
                 # remove table because we dont want to render it

@@ -135,8 +135,8 @@ class GpgGraspSamplerPcl():
         M = np.zeros((3, 3))
         for _ in range(num_points_r_ball):
             if distances[_] != 0:
-                normal = all_normals[kd_indices[_]]
-                normal = normal.reshape(-1, 1)
+                normal = all_normals[kd_indices[_]] # output array is read-only in newer numpy versions so need to add the copy in the next line
+                normal = normal.reshape(-1, 1).copy()
                 if np.linalg.norm(normal) != 0:
                     normal /= np.linalg.norm(normal)
                 M += np.matmul(normal, normal.T)
@@ -319,6 +319,12 @@ class GpgGraspSamplerPcl():
                 if key == 'x':
                     ok_normal_mask = np.logical_and(ok_normal_mask, all_points[:,0] > value[0])
                     ok_normal_mask = np.logical_and(ok_normal_mask, all_points[:,0] < value[1])
+                if key == 'y':
+                    ok_normal_mask = np.logical_and(ok_normal_mask, all_points[:,1] > value[0])
+                    ok_normal_mask = np.logical_and(ok_normal_mask, all_points[:,1] < value[1])
+                if key == 'z':
+                    ok_normal_mask = np.logical_and(ok_normal_mask, all_points[:,2] > value[0])
+                    ok_normal_mask = np.logical_and(ok_normal_mask, all_points[:,2] < value[1])
         num_parallel_jobs = min(ok_normal_mask.sum(), num_parallel_jobs) # Handle edge case where ok_points are too few
 
         if num_parallel_jobs < 1:
@@ -379,7 +385,7 @@ class GpgGraspSamplerPcl():
 
         if show_final_grasps:
             # Show all grasps and the surface point cloud with open3d
-            self.show_grasps_and_pcl_open3d(processed_potential_grasps_vgn, point_cloud)
+            self.show_grasps_and_pcl_open3d(processed_potential_grasps_vgn, point_cloud)#.select_by_index(np.where(ok_normal_mask)[0]))
         
         if return_origin_point:
             return processed_potential_grasps_vgn, potential_grasps_vgn_pos, potential_grasps_vgn_rot_quat, origin_points
@@ -647,7 +653,7 @@ class GpgGraspSamplerPcl():
 
     def show_grasps_and_pcl_open3d(self, grasps, point_cloud):
         grasps_scene = trimesh.Scene()
-        from neugraspnet.utils import visual
+        from neugraspnet.src.utils import visual
         grasp_mesh_list = [visual.grasp2mesh(g) for g in grasps]
         for i, g_mesh in enumerate(grasp_mesh_list):
             grasps_scene.add_geometry(g_mesh, node_name=f'grasp_{i}')
